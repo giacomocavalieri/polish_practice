@@ -1,0 +1,138 @@
+:root {
+    --measure: 60ch;
+
+    --dark-colour: #1c1626;
+    --light-colour: #fefffb;
+    --accent-colour: #ff2961;
+
+    --ratio: 1.5;
+    --s-5: calc(var(--s-4) / var(--ratio));
+    --s-4: calc(var(--s-3) / var(--ratio));
+    --s-3: calc(var(--s-2) / var(--ratio));
+    --s-2: calc(var(--s-1) / var(--ratio));
+    --s-1: calc(var(--s0) / var(--ratio));
+    --s0: 1rem;
+    --s1: calc(var(--s0) * var(--ratio));
+    --s2: calc(var(--s1) * var(--ratio));
+    --s3: calc(var(--s2) * var(--ratio));
+    --s4: calc(var(--s3) * var(--ratio));
+    --s5: calc(var(--s4) * var(--ratio));
+}
+
+/*** DEFAULT STYLING **********************************************************/
+
+html {
+    font-family: sans-serif;
+    background-color: var(--dark-colour);
+    color: var(--light-colour);
+}
+
+* {
+    max-inline-size: var(--measure);
+}
+html,
+div,
+body,
+header,
+nav,
+main,
+footer {
+    max-inline-size: none;
+}
+
+body {
+    padding: var(--s3);
+}
+
+h1 {
+    margin-block-end: var(--s2);
+}
+
+button,
+select {
+    width: fit-content;
+}
+
+a {
+    color: var(--accent-colour);
+    cursor: pointer;
+}
+
+/*** COMPONENTS AND STYLING****************************************************/
+
+.card {
+    max-width: calc(var(--measure) / 2);
+    padding: var(--s1);
+    color: var(--dark-colour);
+    background-color: var(--light-colour);
+
+    &:hover {
+        cursor: pointer;
+    }
+    &:active {
+        cursor: auto;
+    }
+    &.blocked:hover {
+        cursor: wait;
+    }
+    &.unrevealed {
+        background-color: color-mix(
+            in srgb,
+            var(--light-colour) 90%,
+            transparent
+        );
+    }
+}
+
+.accented {
+    color: var(--accent-colour);
+}
+
+.faded {
+    font-style: italic;
+    font-size: 0.8em;
+    opacity: 0.4;
+}
+
+/*** LAYOUT PRIMITIVES ********************************************************/
+
+.center {
+    box-sizing: content-box;
+    margin-inline: auto;
+    max-inline-size: var(--measure);
+}
+.center.intrinsic {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.center-text {
+    text-align: center;
+}
+
+.stack {
+    --stack-gap: var(--s0);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+
+    & > * {
+        margin-block: 0;
+    }
+    & > * + * {
+        margin-block-start: var(--stack-gap);
+    }
+
+    &.large > * {
+        --stack-gap: var(--s2);
+    }
+    &.regular > * {
+        --stack-gap: var(--s0);
+    }
+    &.small > * {
+        --stack-gap: var(--s-1);
+    }
+    &.extra-small > * {
+        --stack-gap: var(--s-3);
+    }
+}
