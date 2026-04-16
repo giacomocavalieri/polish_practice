@@ -45,5 +45,22 @@ fn two() -> Lesson {
 fn three() -> Lesson {
   Lesson("Lekcjia 3", sentences: [
     "Mam na imię Kasia, jestem z Polsce i mieszkam w Krakowie. Mam 25 lat, mówię po angielsku",
+    "Czy znasz angielski? Tak, znam",
+    "Czy znasz japoński? Nie, nie znam",
+    "Jak mówisz po włoski? Mowię fatalnie",
+    "Czy znasz arabski? Znam arabski tylko trochę",
+    "Uczę się polskiego, bo lubię polski",
+    "Ona uczy się polskiego, bo chce pracowaç w Polsce",
+    "Uczę się polskiego, bo moja żona jest polką",
+    "Dlaczego ucisz się polskiego? Uczę się polskiego, bo moja dziewczyna jest polką",
+    "Mój koledzy w pracy mówią tylko po polsku",
+    "Uczę się polskiego, żeby rozmawiać z kolegami",
+    "Nic nie rozumiem po polsku",
+    "Uczę się polskiego, żeby lepiej rozumieć ten jęnzyk",
+    "Jestem inżynierem, chcę pracować w Warsawie",
+    "Lubię polską literaturę. Uczę się polskiego, żeby czytać po polsku",
+    "Uczę się polskiego, żeby komunikować się z polakami. Na przykład w sklepie",
+    "Po lewej stronie",
+    "Po prawej stronie",
   ])
 }
