@@ -65,15 +65,10 @@ a {
     padding: var(--s1);
     color: var(--dark-colour);
     background-color: var(--light-colour);
+    border-radius: var(--s-3);
 
-    &:hover {
-        cursor: pointer;
-    }
-    &:active {
-        cursor: auto;
-    }
-    &.blocked:hover {
-        cursor: wait;
+    & > * {
+        margin-block: 0;
     }
     &.unrevealed {
         background-color: color-mix(
@@ -116,6 +111,18 @@ a {
     flex-direction: column;
     justify-content: flex-start;
 
+    &.inline {
+        flex-direction: row;
+
+        & > * {
+            margin-inline: 0;
+        }
+        & > * + * {
+            margin-block-start: 0;
+            margin-inline-start: var(--stack-gap);
+        }
+    }
+
     & > * {
         margin-block: 0;
     }
@@ -134,5 +141,36 @@ a {
     }
     &.extra-small > * {
         --stack-gap: var(--s-3);
+    }
+}
+
+.with-sidebar {
+    --sidebar-gap: var(--s1);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sidebar-gap);
+}
+
+.with-sidebar > :last-child {
+    flex-grow: 1;
+}
+
+.with-sidebar > :first-child {
+    flex-basis: 0;
+    flex-grow: 999;
+    min-inline-size: 50%;
+}
+
+.icon {
+    width: 0.75em;
+    width: 1cap;
+    height: 0.75em;
+    height: 1cap;
+
+    &.large {
+        width: 1.1em;
+        width: 1.5cap;
+        height: 1.1em;
+        height: 1.5cap;
     }
 }

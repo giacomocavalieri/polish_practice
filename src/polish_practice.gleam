@@ -1,7 +1,9 @@
+import gleam/dynamic/decode
 import gleam/list
+import icon
 import lesson.{type Lesson}
 import lustre
-import lustre/attribute
+import lustre/attribute.{type Attribute}
 import lustre/effect.{type Effect}
 import lustre/element.{type Element}
 import lustre/element/html
@@ -20,7 +22,7 @@ type Model {
   Model(
     lessons: Zip(#(Lesson, LessonState)),
     hide_sentence: Bool,
-    speaking: Bool,
+    speaking: SpeakingState,
   )
 }
 
@@ -31,18 +33,23 @@ type LessonState {
   Completed
 }
 
+type SpeakingState {
+  NeverStarted
+  Paused
+  Playing
+  Finished
+}
+
 fn init(_nil: Nil) -> #(Model, Effect(Message)) {
   let model =
     Model(
-      speaking: False,
+      speaking: NeverStarted,
       hide_sentence: True,
       lessons: lesson.all()
         |> list.map(fn(lesson) { #(lesson, NotStarted) })
         |> zip.from_list(),
     )
-
-  let effect = capture_document_keys(UserPressedKey)
-  #(model, effect)
+  #(model, effect.none())
 }
 
 /// Returns the titles of all the model's lessons, in the same order with which
@@ -126,14 +133,15 @@ fn active_lesson_needs_shuffling(model: Model) -> Bool {
 
 type Message {
   LessonSentencesShuffled(sentences: List(String))
-  UserClickedSentenceCard
-  UserClickedRepeatButton
   UserClickedStartOverButton
-  UserPressedKey(String)
   UserPickedLesson(String)
   UserClickedBack
   SynthesisStartedReading
-  SynthesisStoppedReading
+  SynthesisFinishedReading
+  UserClickedPauseButton
+  UserClickedPlayButton
+  UserClickedAdvanceButton
+  UserClickedShowButton
 }
 
 fn update(model: Model, message: Message) -> #(Model, Effect(Message)) {
@@ -184,43 +192,46 @@ fn update(model: Model, message: Message) -> #(Model, Effect(Message)) {
       #(model, effect)
     }
 
-    // We don't allow going forward if a card is being read out loud!
-    UserClickedSentenceCard | UserPressedKey(" ") if model.speaking -> {
-      #(model, effect.none())
-    }
-
-    // If someone presses the space bar while the current sentence is hidden, or
-    // they click the show button, we need to start showing the current
-    // sentence.
-    UserClickedSentenceCard | UserPressedKey(" ") if model.hide_sentence -> {
+    UserClickedShowButton -> {
       let model = Model(..model, hide_sentence: False)
       #(model, effect.none())
     }
 
-    // When the user presses the space bar while the current sentence is being
-    // shown, or they click the next button, we need to advance to the next
-    // sentence.
-    UserClickedSentenceCard | UserPressedKey(" ") -> {
+    // When we advance to the next sentence we make sure we start reading that
+    // right away.
+    UserClickedAdvanceButton -> {
       let model = advance_to_next_sentence(model)
+      let model = Model(..model, speaking: NeverStarted)
       let effect = read_current_sentence(model)
       #(model, effect)
     }
 
-    // We just need to read the current sentence out loud again, easy!
-    UserClickedRepeatButton if model.speaking -> #(model, effect.none())
-    UserClickedRepeatButton -> #(model, read_current_sentence(model))
-
-    // Any other key press is ignored as it's not a shortcut.
-    UserPressedKey(_) -> #(model, effect.none())
-
-    // We need to track if the speech synthesis is talking or not.
+    // When the speech synthesis actually starts or ends talking we'll receive
+    // a message.
     SynthesisStartedReading -> {
-      let model = Model(..model, speaking: True)
+      let model = Model(..model, speaking: Playing)
       #(model, effect.none())
     }
-    SynthesisStoppedReading -> {
-      let model = Model(..model, speaking: False)
+    SynthesisFinishedReading -> {
+      let model = Model(..model, speaking: Finished)
       #(model, effect.none())
+    }
+
+    // Depending if we're playing already or not we might have to start speaking
+    // from scratch, or just resume the current sentence.
+    UserClickedPlayButton -> {
+      let new_model = Model(..model, speaking: Playing)
+      let effect = case model.speaking {
+        NeverStarted | Finished -> read_current_sentence(model)
+        Paused -> resume_reading()
+        Playing -> effect.none()
+      }
+      #(new_model, effect)
+    }
+
+    UserClickedPauseButton -> {
+      let model = Model(..model, speaking: Paused)
+      #(model, pause_reading())
     }
   }
 }
@@ -251,7 +262,7 @@ fn read_current_sentence(model: Model) -> Effect(Message) {
       do_read(
         current_sentence,
         on_start: fn() { dispatch(SynthesisStartedReading) },
-        on_end: fn() { dispatch(SynthesisStoppedReading) },
+        on_end: fn() { dispatch(SynthesisFinishedReading) },
       )
     }
   }
@@ -264,6 +275,22 @@ fn do_read(
   on_end on_end: fn() -> b,
 ) -> Nil
 
+fn pause_reading() -> Effect(Message) {
+  use _dispatch <- effect.from
+  do_pause_reading()
+}
+
+@external(javascript, "./polish_practice_ffi.mjs", "do_pause_reading")
+fn do_pause_reading() -> Nil
+
+fn resume_reading() -> Effect(Message) {
+  use _dispatch <- effect.from
+  do_resume_reading()
+}
+
+@external(javascript, "./polish_practice_ffi.mjs", "do_resume_reading")
+fn do_resume_reading() -> Nil
+
 fn stop_reading() -> Effect(Message) {
   use _dispatch <- effect.from
   do_stop_reading()
@@ -271,17 +298,6 @@ fn stop_reading() -> Effect(Message) {
 
 @external(javascript, "./polish_practice_ffi.mjs", "do_stop_reading")
 fn do_stop_reading() -> Nil
-
-/// Effect that attaches an onkeydown listener to the page's window object and
-/// listen for all of the user's keypresses.
-/// Run on init, useful to implement keyboard shortcuts!
-fn capture_document_keys(message: fn(String) -> Message) -> Effect(Message) {
-  use dispatch <- effect.from
-  do_capture_document_keys(fn(key) { dispatch(message(key)) })
-}
-
-@external(javascript, "./polish_practice_ffi.mjs", "do_capture_document_keys")
-fn do_capture_document_keys(value: fn(String) -> Nil) -> Nil
 
 // ------ VIEW -----------------------------------------------------------------
 
@@ -362,23 +378,51 @@ fn sentence_card(sentence: String, model: Model) -> Element(Message) {
     True -> "listen and repeat"
     False -> sentence
   }
-  let hint = case model.hide_sentence, model.speaking {
-    True, True -> element.none()
-    True, False ->
-      html.p([attribute.class("faded")], [html.text("click to reveal")])
-    False, _ ->
-      html.p([attribute.class("faded")], [html.text("click to advance")])
+
+  let playback_button = case model.speaking {
+    NeverStarted | Paused | Finished ->
+      icon_button(icon.play, UserClickedPlayButton)
+    Playing -> icon_button(icon.pause, UserClickedPauseButton)
+  }
+  let flip_button = case model.hide_sentence {
+    False -> icon_button(icon.circle_check, UserClickedAdvanceButton)
+    True -> icon_button(icon.eye, UserClickedShowButton)
   }
 
-  let styles = [
-    attribute.class("card stack extra-small"),
-    attribute.classes([#("blocked", model.speaking)]),
-    attribute.classes([#("unrevealed", model.hide_sentence)]),
-    event.on_click(UserClickedSentenceCard),
-  ]
+  html.div(
+    [
+      attribute.class("card with-sidebar"),
+      attribute.classes([#("unrevealed", model.hide_sentence)]),
+      case model.speaking {
+        Playing -> attribute.class("blocked")
+        NeverStarted | Paused | Finished -> attribute.none()
+      },
+    ],
+    [
+      html.p([], [html.text(text)]),
+      html.div([attribute.class("stack inline extra-small")], [
+        playback_button,
+        flip_button,
+      ]),
+    ],
+  )
+}
 
-  html.div(styles, [
-    html.p([], [html.text(text)]),
-    hint,
+fn icon_button(
+  icon: fn(List(Attribute(msg))) -> Element(msg),
+  message: msg,
+) -> Element(msg) {
+  icon([
+    attribute.tabindex(0),
+    attribute.role("button"),
+    attribute.class("large"),
+    event.on_click(message),
+    event.on("keydown", {
+      use key <- decode.field("key", decode.string)
+      case key {
+        " " | "Enter" -> decode.success(message)
+        _ -> decode.failure(message, "key")
+      }
+    }),
   ])
 }
